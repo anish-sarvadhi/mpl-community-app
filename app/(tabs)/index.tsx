@@ -1,6 +1,7 @@
 /** @format */
 
-// App.js
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -9,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -18,31 +20,74 @@ const Home = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showCommunity, setShowCommunity] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadStartTime, setLoadStartTime] = useState(null);
-  const [user, setUser] = useState<any>(null);
+  const [loadStartTime, setLoadStartTime] = useState<number | null>(null);
+  type User = {
+    id: string;
+    first_name: string;
+    last_name: string;
+    user_name: string;
+    email: string;
+    token: string;
+  };
+  
+  const [user, setUser] = useState<User | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const webViewRef = useRef(null);
 
-  // Static user data (replace with your actual user structure)
-  const staticUser = {
-    id: "12345",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    token: "static_auth_token_123",
-  };
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password");
+      return;
+    }
 
-  const handleLogin = () => {
     setIsLoading(true);
-    // Simulate login process
-    setTimeout(() => {
-      setUser(staticUser);
+    try {
+      const response = await axios.post("http://192.168.2.76:5000/api/v1/auth/login", {
+        data: {
+          email,
+          password,
+        },
+      });
+
+      const userData = response.data.data.data; // Nested data structure
+      const { token } = userData;
+
+      if (!token) {
+        throw new Error("Token not found in response");
+      }
+
+      // Store token in AsyncStorage
+      await AsyncStorage.setItem("authToken", token);
+      
+      // Set user data
+      setUser({
+        id: userData.id.toString(),
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        user_name: userData.user_name,
+        email: userData.email,
+        token,
+      });
+      
       setIsLoggedIn(true);
+      setEmail("");
+      setPassword("");
+  
+    } catch (error) {
+      console.error("Login error:", error);
+      let errorMessage = "Login failed. Please try again.";
+      if (error instanceof Error) {
+        errorMessage = error.message || errorMessage;
+      }
+      Alert.alert("Error", errorMessage);
+    } finally {
       setIsLoading(false);
-      Alert.alert("Success", "Login successful!");
-    }, 1000);
+    }
   };
 
   const handleCommunityPress = () => {
-    setLoadStartTime(Date.now() as any);
+    setLoadStartTime(Date.now());
     setIsLoading(true);
     setShowCommunity(true);
   };
@@ -51,8 +96,7 @@ const Home = () => {
     if (loadStartTime) {
       const loadTime = Date.now() - loadStartTime;
       console.log(`Community load time: ${loadTime}ms`);
-      // You can send this to analytics or show to client
-      Alert.alert("Load Time", `Community loaded in ${loadTime}ms`);
+      // Alert.alert("Load Time", `Community loaded in ${loadTime}ms`);
     }
     setIsLoading(false);
   };
@@ -62,18 +106,23 @@ const Home = () => {
     setLoadStartTime(null);
   };
 
-  // Generate SSO URL with user data
   const generateSSOUrl = () => {
-    const baseUrl = "https://mpl-community.vercel.app"; // Replace with your actual URL
+    if (!user) {
+      return "";
+    }
+    // const baseUrl = "https://mpl-community.vercel.app";
+    const baseUrl = "http://192.168.2.75:3000";
     const ssoParams = {
       user_id: user.id,
-      name: user.name,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      user_name: user.user_name,
       email: user.email,
       token: user.token,
-      return_url: "app://home", // Custom scheme for returning to app
-    } as any;
+      return_url: "app://home",
+    };
 
-    const queryString = Object.keys(ssoParams)
+    const queryString = (Object.keys(ssoParams) as (keyof typeof ssoParams)[])
       .map(
         (key) =>
           `${encodeURIComponent(key)}=${encodeURIComponent(ssoParams[key])}`
@@ -83,54 +132,39 @@ const Home = () => {
     return `${baseUrl}/sso-login?${queryString}`;
   };
 
-  // Handle messages from WebView
   const handleWebViewMessage = (event: any) => {
-    const data = JSON.parse(event.nativeEvent.data);
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
 
-    if (data.action === "back_to_home") {
-      handleBackToHome();
+      if (data.action === "back_to_home") {
+        handleBackToHome();
+      } else if (data.action === "login_required") {
+        setShowCommunity(false);
+        setIsLoggedIn(false);
+        setUser(null);
+        AsyncStorage.removeItem("authToken");
+        Alert.alert("Session Expired", "Please login again.");
+      }
+    } catch (error) {
+      console.error("WebView message parsing error:", error);
     }
   };
 
-  // Inject JavaScript to handle back button in web
   const injectedJavaScript = `
     (function() {
-      // Listen for back to home events
       window.addEventListener('message', function(event) {
-        if (event.data.action === 'back_to_home') {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            action: 'back_to_home'
-          }));
+        if (event.data.action === 'back_to_home' || event.data.action === 'login_required') {
+          window.ReactNativeWebView.postMessage(JSON.stringify(event.data));
         }
       });
 
-      // Override back button behavior
       window.addEventListener('popstate', function(event) {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           action: 'back_to_home'
         }));
       });
 
-      // Add custom back button if needed
-      const backButton = document.createElement('button');
-      backButton.innerHTML = '← Back to App';
-      backButton.style.cssText = \`
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 9999;
-        background: #007AFF;
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 5px;
-        font-size: 14px;
-      \`;
-      backButton.onclick = function() {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          action: 'back_to_home'
-        }));
-      };
+      
       document.body.appendChild(backButton);
     })();
   `;
@@ -139,30 +173,21 @@ const Home = () => {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
-        {isLoading && (
+        {/* {isLoading && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#007AFF" />
             <Text style={styles.loadingText}>Loading Community...</Text>
           </View>
-        )}
+        )} */}
         <WebView
           ref={webViewRef}
           source={{ uri: generateSSOUrl() }}
           style={styles.webView}
           onLoad={handleWebViewLoad}
-          // onLoadStart={() => setIsLoading(true)}
-          // onLoadEnd={() => setIsLoading(false)}
-          // onMessage={handleWebViewMessage}
-          // injectedJavaScript={injectedJavaScript}
-          // javaScriptEnabled={true}
-          // domStorageEnabled={true}
-          // startInLoadingState={true}
-          // renderLoading={() => (
-          //   <View style={styles.loadingContainer}>
-          //     <ActivityIndicator size="large" color="#007AFF" />
-          //     <Text style={styles.loadingText}>Loading Community...</Text>
-          //   </View>
-          // )}
+          onMessage={handleWebViewMessage}
+          injectedJavaScript={injectedJavaScript}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
         />
       </SafeAreaView>
     );
@@ -179,6 +204,21 @@ const Home = () => {
             <Text style={styles.subtitle}>
               Welcome! Please login to continue
             </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
             <TouchableOpacity
               style={styles.button}
               onPress={handleLogin}
@@ -193,7 +233,7 @@ const Home = () => {
           </View>
         ) : (
           <View style={styles.homeContainer}>
-            <Text style={styles.welcomeText}>Welcome, {user.name}!</Text>
+            <Text style={styles.welcomeText}>Welcome, {user?.first_name} {user?.last_name}!</Text>
 
             <View style={styles.statsContainer}>
               <Text style={styles.statsTitle}>Your Stats</Text>
@@ -225,7 +265,8 @@ const Home = () => {
 
             <TouchableOpacity
               style={styles.logoutButton}
-              onPress={() => {
+              onPress={async () => {
+                await AsyncStorage.removeItem("authToken");
                 setIsLoggedIn(false);
                 setUser(null);
                 setShowCommunity(false);
@@ -265,6 +306,16 @@ const styles = StyleSheet.create({
   },
   loginContainer: {
     alignItems: "center",
+  },
+  input: {
+    width: "100%",
+    backgroundColor: "white",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
   },
   homeContainer: {
     alignItems: "center",
@@ -345,12 +396,6 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
   },
   loadingOverlay: {
     position: "absolute",
