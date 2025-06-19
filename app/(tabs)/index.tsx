@@ -110,8 +110,7 @@ const Home = () => {
     if (!user) {
       return "";
     }
-    // const baseUrl = "https://mpl-community.vercel.app";
-    const baseUrl = "http://192.168.2.75:3000";
+    const baseUrl = "https://mpl-community.vercel.app";
     const ssoParams = {
       user_id: user.id,
       first_name: user.first_name,
