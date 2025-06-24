@@ -1,5 +1,6 @@
 /** @format */
 
+import { encryptData } from "@/enc-dec";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import React, { useRef, useState } from "react";
@@ -29,7 +30,7 @@ const Home = () => {
     email: string;
     token: string;
   };
-  
+
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,12 +44,15 @@ const Home = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post("http://192.168.2.76:5000/api/v1/auth/login", {
-        data: {
-          email,
-          password,
-        },
-      });
+      const response = await axios.post(
+        "https://1q3rk7l6-5000.inc1.devtunnels.ms/api/v1/auth/login",
+        {
+          data: {
+            email,
+            password,
+          },
+        }
+      );
 
       const userData = response.data.data.data; // Nested data structure
       const { token } = userData;
@@ -59,7 +63,7 @@ const Home = () => {
 
       // Store token in AsyncStorage
       await AsyncStorage.setItem("authToken", token);
-      
+
       // Set user data
       setUser({
         id: userData.id.toString(),
@@ -69,11 +73,10 @@ const Home = () => {
         email: userData.email,
         token,
       });
-      
+
       setIsLoggedIn(true);
       setEmail("");
       setPassword("");
-  
     } catch (error) {
       console.error("Login error:", error);
       let errorMessage = "Login failed. Please try again.";
@@ -106,11 +109,40 @@ const Home = () => {
     setLoadStartTime(null);
   };
 
+  // const generateSSOUrl = () => {
+  //   if (!user) {
+  //     return "";
+  //   }
+  //   const baseUrl = "https://mpl-community.vercel.app";
+  //   const ssoParams = {
+  //     user_id: user.id,
+  //     first_name: user.first_name,
+  //     last_name: user.last_name,
+  //     user_name: user.user_name,
+  //     email: user.email,
+  //     token: user.token,
+  //     return_url: "app://home",
+  //   };
+
+  //   const queryString = (Object.keys(ssoParams) as (keyof typeof ssoParams)[])
+  //     .map(
+  //       (key) =>
+  //         `${encodeURIComponent(key)}=${encodeURIComponent(ssoParams[key])}`
+  //     )
+  //     .join("&");
+
+  //   const encryption = encryptData(queryString);
+  //   console.log("Encrypted SSO Params:", encryption);
+  //   const decrypt = decryptData(encryption);
+  //   console.log("Decrypted SSO Params:", decrypt);
+
+  //   return `${baseUrl}/sso-login?${queryString}`;
+  // };
   const generateSSOUrl = () => {
-    if (!user) {
-      return "";
-    }
-    const baseUrl = "https://mpl-community.vercel.app";
+    if (!user) return "";
+
+    // const baseUrl = "https://mpl-community.vercel.app";
+    const baseUrl = " http://192.168.31.195:3001";
     const ssoParams = {
       user_id: user.id,
       first_name: user.first_name,
@@ -121,15 +153,20 @@ const Home = () => {
       return_url: "app://home",
     };
 
-    const queryString = (Object.keys(ssoParams) as (keyof typeof ssoParams)[])
+    const queryString = Object.entries(ssoParams)
       .map(
-        (key) =>
-          `${encodeURIComponent(key)}=${encodeURIComponent(ssoParams[key])}`
+        ([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`
       )
       .join("&");
 
-    return `${baseUrl}/sso-login?${queryString}`;
+    const encrypted = encryptData(queryString);
+
+    if (!encrypted) return "";
+
+    return `${baseUrl}/sso-login?data=${encodeURIComponent(encrypted)}`;
   };
+
+  console.log("Generated SSO URL:", generateSSOUrl() as string);
 
   const handleWebViewMessage = (event: any) => {
     try {
@@ -172,12 +209,6 @@ const Home = () => {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
-        {/* {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading Community...</Text>
-          </View>
-        )} */}
         <WebView
           ref={webViewRef}
           source={{ uri: generateSSOUrl() }}
@@ -232,7 +263,9 @@ const Home = () => {
           </View>
         ) : (
           <View style={styles.homeContainer}>
-            <Text style={styles.welcomeText}>Welcome, {user?.first_name} {user?.last_name}!</Text>
+            <Text style={styles.welcomeText}>
+              Welcome, {user?.first_name} {user?.last_name}!
+            </Text>
 
             <View style={styles.statsContainer}>
               <Text style={styles.statsTitle}>Your Stats</Text>
