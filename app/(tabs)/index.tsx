@@ -45,7 +45,7 @@ const Home = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "https://1q3rk7l6-5000.inc1.devtunnels.ms/api/v1/auth/login",
+        "https://1q3rk7l6-5000.inc1.devtunnels.ms/api/v1/auth/login", // Replace with your actual API endpoint
         {
           data: {
             email,
@@ -109,40 +109,11 @@ const Home = () => {
     setLoadStartTime(null);
   };
 
-  // const generateSSOUrl = () => {
-  //   if (!user) {
-  //     return "";
-  //   }
-  //   const baseUrl = "https://mpl-community.vercel.app";
-  //   const ssoParams = {
-  //     user_id: user.id,
-  //     first_name: user.first_name,
-  //     last_name: user.last_name,
-  //     user_name: user.user_name,
-  //     email: user.email,
-  //     token: user.token,
-  //     return_url: "app://home",
-  //   };
-
-  //   const queryString = (Object.keys(ssoParams) as (keyof typeof ssoParams)[])
-  //     .map(
-  //       (key) =>
-  //         `${encodeURIComponent(key)}=${encodeURIComponent(ssoParams[key])}`
-  //     )
-  //     .join("&");
-
-  //   const encryption = encryptData(queryString);
-  //   console.log("Encrypted SSO Params:", encryption);
-  //   const decrypt = decryptData(encryption);
-  //   console.log("Decrypted SSO Params:", decrypt);
-
-  //   return `${baseUrl}/sso-login?${queryString}`;
-  // };
   const generateSSOUrl = () => {
     if (!user) return "";
 
     // const baseUrl = "https://mpl-community.vercel.app";
-    const baseUrl = " http://192.168.31.195:3001";
+    const baseUrl = " http://192.168.31.195:3001"; // Replace with your actual base URL
     const ssoParams = {
       user_id: user.id,
       first_name: user.first_name,
