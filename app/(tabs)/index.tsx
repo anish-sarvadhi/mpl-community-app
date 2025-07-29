@@ -1,5 +1,6 @@
 /** @format */
 
+import { BACKEND_URL, FRONTEND_URL } from "@/constants/Constants";
 import { encryptData } from "@/enc-dec";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -45,11 +46,11 @@ const Home = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "https://1q3rk7l6-5000.inc1.devtunnels.ms/api/v1/auth/login", // Replace with your actual API endpoint
+        `${BACKEND_URL}/auth/login`, // Replace with your actual API endpoint
         {
           data: {
-            email,
-            password,
+            email: email,
+            password: password,
           },
         }
       );
@@ -113,7 +114,7 @@ const Home = () => {
     if (!user) return "";
 
     // const baseUrl = "https://mpl-community.vercel.app";
-    const baseUrl = " http://192.168.31.195:3001"; // Replace with your actual base URL
+    const baseUrl = FRONTEND_URL; // Replace with your actual base URL
     const ssoParams = {
       user_id: user.id,
       first_name: user.first_name,
@@ -171,12 +172,13 @@ const Home = () => {
         }));
       });
 
-      
       document.body.appendChild(backButton);
     })();
   `;
 
   if (showCommunity && isLoggedIn) {
+    // console.log("Rendering WebView for community app");
+
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
